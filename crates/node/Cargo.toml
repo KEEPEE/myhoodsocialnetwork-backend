@@ -1,0 +1,77 @@
+[package]
+name = "node"
+description = "MyHoodSocialNetwork — binárka uzla (D-31: uzol beží len ako serverový program)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "myhsn-node"
+path = "src/main.rs"
+
+[dependencies]
+argon2 = "0.5"
+# OS RNG pre Argon2 soľ a session tokeny (B4). `argon2`-ov `rand` feature
+# zapína len `password-hash/rand_core` bez `getrandom`, takže OsRng
+# neprináša — pridávame `rand_core` priamo (verzia sedí na strom argon2).
+rand_core = { version = "0.6.4", features = ["std", "getrandom"] }
+axum = { version = "0.8.9", features = ["ws"] }
+axum-server = { version = "0.9.2", features = ["tls-rustls"] }
+# F12d (MYHSN-47): CORS pre webové originy. `tower-http` bol v strome už
+# doteraz **transitive** (0.6.11), teraz je priamo a s feature `cors` —
+# pridanie features teda neprináša novú verziu ani nový strom.
+tower-http = { version = "0.6", features = ["cors"] }
+blake3 = "1"
+# Balík sa menuje `core` (per špecifikácia workspace), ale v node ho
+# importujeme pod aliasom `myhsn_core`: makrá (#[tokio::main]) emitujú
+# absolute cesty `::core::…` a dependency named `core` by shadowol
+# sysroot crate `core`. `cargo tree -p core` tak stále funguje.
+myhsn_core = { package = "core", path = "../core" }
+ed25519-dalek = "2"
+minicbor = { version = "2.3.1", features = ["std"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+rustls = "0.23"
+serde = { version = "1.0.229", features = ["derive"] }
+# JSON telá REST odpovedí (B3: /channels, /node/info).
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "process", "io-util", "sync", "fs"] }
+tokio-tungstenite = "0.30.0"
+toml = "1.2.1"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+# F10a (calls): LiveKit SFU — mint JWT, Server API (create/list room,
+# RemoveParticipant) a overenie webhookov. Spike G4 overil 0.10.2; crate
+# `livekit` (libwebrtc) NEťaháme. Default features = services + access-token
+# + webhooks; TLS dodá zdieľaný `reqwest` nižšie (feature unifikácia).
+livekit-api = "0.10.2"
+# HTTP klient pre stiahnutie LiveKit binárky (GitHub release, HTTPS) a
+# health-check potomka. Rovnaká verzia ako v `livekit-api` → jeden strom;
+# `rustls` zapína TLS aj pre Server API v režime `external` (https://).
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+# SHA-256 stiahnutého archívu (pin per platforma) — už je v strome cez livekit-api.
+sha2 = "0.10"
+
+# Rozbalenie LiveKit archívu: Linux release = .tar.gz, Windows = .zip.
+[target.'cfg(unix)'.dependencies]
+flate2 = "1"
+tar = { version = "0.4", default-features = false }
+# prctl(PR_SET_PDEATHSIG) v pre_exec + kill(SIGTERM) pri graceful stop.
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Job Object s KILL_ON_JOB_CLOSE (potomok zomrie s uzlom). `windows-sys`
+# je ľahší než `windows` (len FFI deklarácie, bez COM wrapperov).
+# `Win32_System_Threading` je nutný: gatuje JOBOBJECT_EXTENDED_LIMIT_INFORMATION.
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Security"] }
+
+[dev-dependencies]
+# split()/StreamExt pre WS klientov v integrných testoch
+futures = "0.3"
+# ServiceExt::oneshot — volanie axum routera v unit testoch media bez soketu
+tower = "0.5"
+# base64(SHA-256(telo)) pri podpisovaní testovacích LiveKit webhookov
+base64 = "0.21"

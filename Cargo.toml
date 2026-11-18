@@ -1,0 +1,15 @@
+# Workspace pre backend MyHoodSocialNetwork (P2P sieť pre malé komunity).
+# D-02: jedno jadro (crates/core, sans-IO) + binárka uzla (crates/node).
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/node"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "FSL-1.1-ALv2"   # SPDX id; alias „FSL-1.1-Apache-2.0“ je presmerovanie na ALv2
+# Zdroj je zverejnený pod FSL 1.1 (budúca licencia Apache-2.0): ktokoľvek ho môže
+# prevádzkovať pre seba, rodinu aj firmu, len z neho nesmie robiť konkurenčnú
+# platenú službu. Každá verzia je po 2 rokoch od vydania Apache-2.0. Viď LICENSE.md.
+publish = false

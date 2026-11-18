@@ -1,0 +1,23 @@
+[package]
+name = "core"
+description = "MyHoodSocialNetwork — sans-IO jadro (záznamy, poradie, identita, sync, storage trait, wire)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# D-29: core je sans-IO; client (apka) a server (full node) sú voliteľné
+# nadstavby cez cargo features. Default žiadna — jadro samé si nesmie
+# siahnuť po tokio/axum/rusqlite.
+[features]
+default = []
+client = []
+server = []
+
+[dependencies]
+blake3 = "1"
+minicbor = { version = "2.3.1", features = ["std"] }
+# B2 (MYHSN-4): skutočné podpisy. ed25519-dalek je výpočet, nie I/O —
+# D-29 zakazuje v jadre tokio/axum/rusqlite, kryptografiu nie.
+ed25519-dalek = "2"

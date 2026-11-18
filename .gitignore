@@ -1,0 +1,17 @@
+# Rust build artefakty
+target/
+
+# Dáta uzla (SQLite, media) — never commitovať
+data/
+
+# Databázové súbory
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Dočasné súbory
+*.tmp
+*.bak

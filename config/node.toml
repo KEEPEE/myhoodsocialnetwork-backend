@@ -1,0 +1,107 @@
+# Konfigurácia uzla MyHoodSocialNetwork (B1 scaffold).
+# Spustenie: MYHSN_NODE_CONFIG=config/node.toml cargo run -p node
+# (alebo binárka v rovnakom CWD — súbor sa hľadá ako config/node.toml).
+
+# Pilot beží na vývojovom hostovi, port 8123 (overene volny).
+listen = "0.0.0.0:8123"
+
+# Adresár s dátami uzla (SQLite, media) — vytvorí ho B2.
+data_dir = "./data"
+
+# --- Médium: pominuteľné bloby (B7/MYHSN-9, rozhodnutie D-33) --------------
+# Celá sekcia je VOLITEĽNÁ — jej vynechanie znamená tieto defaulty
+# (spätná kompatibilita: starý node.toml bez [media] sa spustí rovnako).
+# Obrázky v chate sú pominuteľné: žijú mimo append-only logu, majú TTL a
+# mazú lena (lazy) pri ďalšom uploade/stiahnutí — bez cronu.
+[media]
+# Max veľkosť jedného uploadu (8 MiB — foto z telefónu).
+max_upload_bytes = 8388608
+# Max súčet neexpirovaných blobov na jeden účet (200 MiB).
+max_bytes_per_account = 209715200
+# TTL blobu v sekundách (86400 = 1 deň).
+ephemeral_ttl_secs = 86400
+# Adresár blobov. Vynechaj => <data_dir>/media. V kontajneri /data/media.
+# dir = "./data/media"
+
+# --- Hovory: skupinové audio + zdieľanie obrazovky cez LiveKit SFU (F10a) ---
+# Celá sekcia je VOLITEĽNÁ — jej vynechanie znamená mode = "off".
+#   off      — hovory nedostupné (POST /calls/token → 503)
+#   managed  — uzol stiahne LiveKit 1.13.11 (pin SHA-256) do
+#              <data_dir>/addons/livekit/<ver>/, vygeneruje livekit.yaml a
+#              spustí ho ako potomka (porty 7880 TCP, 7881 TCP, 7882 UDP —
+#              treba ich otvoriť/forwardnúť pre klientov mimo LAN)
+#   external — vlastný LiveKit; webhook na http(s)://<uzol>/calls/webhook
+#              nastaví operátor v jeho livekit.yaml
+[calls]
+mode = "off"
+# Kľúče LiveKitu. managed bez nich => uzol ich vygeneruje do
+# <data_dir>/addons/livekit/keys.toml (0600). api_secret min. 32 znakov.
+# NIKDY sem nedávaj reálne tajomstvo, ak je súbor v gite.
+# api_key = "myhsn-key"
+# api_secret = "<min. 32 znakov>"
+# external: URL pre klientov (ws:// alebo wss://).
+# livekit_url = "wss://lk.example.sk"
+# managed: host v URL pre klienta (ws://<host>:7880). Vynechaj => z Host hlavičky.
+# public_host = "192.0.2.20"
+# managed: rtc.node_ip — IP, ktorú LiveKit ohlási v ICE (NAT/Docker).
+# node_ip = "192.0.2.20"
+# Moderátori hovorov (F10d, MYHSN-39): mená účtov, ktoré smú vyhodiť
+# účastníka z hovoru (POST /calls/kick). Uzol nemá model rolí — `Channel`
+# nemá majiteľa — preto o oprávnení rozhoduje operátor uzla týmto zoznamom.
+# Vynechaj / prázdny zoznam = nikto nemoderuje (kick vráti 403 každému).
+# Mená nie sú tajomstvo: objavujú sa v odpovedi POST /calls/token.
+# moderators = ["anna"]
+
+# --- Autentizácia a role: politika registrácie, prvý admin (F14a, MYHSN-56) -
+# Celá sekcia je VOLITEĽNÁ — jej vynechanie znamená tieto defaulty
+# (spätná kompatibilita: starý node.toml bez [auth] sa spustí rovnako).
+#
+# registration_policy — ako sa dostávajú noví účty na uzol:
+#   open           — hocikto sa zaregistruje (default, správanie pred F14a)
+#   invite_only    — len s platnou jednorazovou pozvánkou (POST /invites)
+#   admin_approved — registrácia prebehne, ale účet čaká na schválenie
+#                    adminom (grant role = schválenie,
+#                    DELETE /admin/users/{id} = zamietnutie)
+# bootstrap_admin — meno účtu, ktorý smie byť PRVÝM adminom uzla. Bez
+#                    tejto hodnoty sa prvým adminom stáva prvý
+#                    registrovaný (server je prázdny). S hodnotou sa
+#                    povýši len účet s presne týmto menom — pri
+#                    registrácii, alebo pri štarte uzla ak už existuje.
+# Na uzle bez admina prvý kandidát vždy prejde aj bez pozvánky
+# (inak by invite_only uzol nikto neodomykal).
+#
+# [auth]
+# registration_policy = "open"
+# bootstrap_admin = "admin"
+
+# --- HTTP vrstva: CORS a WebSocket `Origin` (F12d, MYHSN-47) ----------------
+# Celá sekcia je VOLITEĽNÁ — jej vynechanie znamená tieto defaulty
+# (spätná kompatibilita: starý node.toml bez [http] sa spustí rovnako).
+#
+# allowed_origins = zoznam PRESNÝCH reťazcov originu (scheme://host:port,
+# bez koncového lomítka). Uzol ich používa na dve nezávislé kontroly:
+#   1. REST/HTTP (CORS): `Access-Control-Allow-Origin` a odpoveď na
+#      preflight (OPTIONS) dostane len origin zo zoznamu. Bez toho
+#      prehliadač zahodí každú odpoveď webovej apky.
+#   2. WebSocket: `Origin` handshake MUSÍ byť v zozname, inak 403
+#      (CSWSH — inak by cudzia stránka otvorila WS a posielala záznamy).
+#      Klient bez `Origin` hlavičky (natívny Dart klient, `lk` bot) je
+#      povolený vždy — neposiela ju, lebo nie je prehliadač. Navyše
+#      `Origin` rovný vlastnému hostovi (scheme + Host hlavička) sa
+#      prijíma tiež, aby apka nasadená priamo na uzle fungovala.
+#
+# Prvé dva originy sú pilotné webové originy (F12f: apka na .1:8080 a jej
+# doménový alias). Zvyšné tri sú DOČASNÉ dev-only — spike na 127.0.0.1:8088 a
+# priamy cross-origin test z vývojového kontajnera (198.51.100.2) — s TLS/doménou
+# (F12e) sa majú odstrániť: verejný uzol nemá dôvod púšťať originy z
+# docker siete. Autentifikácia je Bearer token, nie cookie, preto uzol
+# neodpovedá `Access-Control-Allow-Credentials`.
+[http]
+allowed_origins = [
+    "http://192.0.2.10:8080",
+    "http://web.example.com:8080",
+    # dev-only — odstrániť s F12e
+    "http://127.0.0.1:8088",
+    "http://198.51.100.2:8089",
+    "http://198.51.100.2:8091",
+]
